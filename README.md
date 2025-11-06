@@ -1,5 +1,9 @@
 # 🤖 Email Agent – Outlook Automation con Microsoft Graph
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Build Status](https://github.com/stefano-alessandrini/Agente-email/actions/workflows/build.yml/badge.svg)](https://github.com/stefano-alessandrini/Agente-email/actions)
+![Windows EXE](https://img.shields.io/badge/Windows-.exe-blue)
+
 Questo repository contiene un **agente intelligente** per automatizzare la gestione della posta elettronica in Outlook tramite Microsoft Graph.
 
 L’agente:
@@ -22,41 +26,39 @@ Il tutto viene compilato come **eseguibile Windows (.exe)** tramite GitHub Actio
 - `requirements.txt` → Librerie Python necessarie
 - `.env.example` → Configurazione modello (da copiare in `.env`)
 - `.github/workflows/build.yml` → Workflow GitHub Actions per creare l’eseguibile
+- `LICENSE` (MIT)
 
 ---
 
-## ✅ Come funziona la build automatica (GitHub Actions)
-
-Il workflow **Build Agent EXE** compila automaticamente l’agente.
+## ✅ Build automatica (GitHub Actions)
 
 Ogni volta che fai un commit su `main`, GitHub:
-1. installa Python
-2. installa le dipendenze da `requirements.txt`
-3. esegue PyInstaller
-4. genera un file `.exe`
-5. pubblica l’eseguibile come artifact scaricabile
 
-Puoi vedere gli eseguibili generati qui:
+1. Installare Python  
+2. Installare le dipendenze  
+3. Esegue PyInstaller  
+4. Genera il file `.exe`  
+5. Pubblica l’eseguibile come artifact scaricabile
+
+Puoi vederlo qui:  
+👉 **Actions → Build Agent EXE**
 
 ---
 
-## ✅ Come scaricare l'eseguibile (.exe)
+## ✅ Download dell’eseguibile (Windows)
 
-1. Apri la scheda **Actions**
-2. Clicca sull’ultima build “✓ Build Agent EXE”
-3. In basso trovi **Artifacts**
+1. Vai su **Actions**  
+2. Apri l’ultima build verde  
+3. Scorri in basso fino a **Artifacts**  
 4. Scarica:  
    ✅ `email-agent-exe.zip`  
-5. Dentro lo ZIP trovi:  
+5. All’interno troverai:  
    ✅ `processor.exe` pronto all’uso
-
-Non serve installare Python sul PC.
 
 ---
 
 ## ✅ Configurazione del file `.env`
-
-Crea nella stessa cartella dell’eseguibile un file chiamato **`.env`** con questo contenuto:
+Crea un file chiamato `.env` nella stessa cartella dell’eseguibile:
 CLIENT_ID=xxx
 TENANT_ID=xxx
 CLIENT_SECRET=xxx
@@ -69,7 +71,8 @@ ENABLE_LLM=false
 POLL_SECONDS=20
 BUILDINGS_FILE=buildings.json
 
-Le credenziali (`CLIENT_ID`, `TENANT_ID`, `CLIENT_SECRET`) si ottengono registrando un’app su **Azure Entra ID** con permessi:
+
+Ottieni le credenziali Microsoft registrando un’app in **Azure Entra ID** con permessi:
 
 - Mail.ReadWrite  
 - Mail.Send  
@@ -79,16 +82,17 @@ Le credenziali (`CLIENT_ID`, `TENANT_ID`, `CLIENT_SECRET`) si ottengono registra
 
 ---
 
-## ✅ Struttura cartelle generata automaticamente in Outlook
+## ✅ Struttura cartelle generata in Outlook
+
+### 📁 Immobili
 Immobili/
 Edificio A/
 Edificio B/
 Campus Padriciano/
 Campus Basovizza/
 
-### 📁 Immobili (include anche i campus)
 
-Per ogni edificio:
+Sottocartelle:
 Contratti/
 Fatture/
 Preventivi/
@@ -98,7 +102,7 @@ Segnalazioni/
 
 
 ### 📁 Operativo
-perativo/
+Operativo/
 Da Gestire
 In Attesa Risposta
 Urgenti
@@ -109,48 +113,26 @@ Comunicazioni Interne
 
 ---
 
-## ✅ Come funziona l’agente
+## ✅ Funzionamento dell’agente
 
-### 1️⃣ Lettura email
-Legge le email non lette dalla inbox via Microsoft Graph.
+### 1️⃣ Lettura email  
+Analizza oggetto, testo, mittente e allegati.
 
-### 2️⃣ Classificazione intelligente
-Analizza oggetto, testo, mittente e allegati per determinare:
-- edificio/campus
-- tipo documento (fattura, segnalazione, ecc.)
-- cartella corretta
+### 2️⃣ Classificazione  
+Smistamento automatico → o richiesta alla dashboard se dubbio.
 
-### 3️⃣ Smistamento
-Se la confidenza è alta → email spostata automaticamente.  
-Se la confidenza è media → richiesta inviata alla dashboard.  
-Se bassa → fallback in `Operativo/Da Gestire`.
-
-### 4️⃣ Creazione task To Do
-Per:
+### 3️⃣ Task To Do  
+Automatici per:
 - fatture  
 - preventivi  
 - consuntivi  
 - segnalazioni  
 
-Viene creato un task con scadenza di 7 giorni.
+### 4️⃣ Risposte automatiche  
+Genera una bozza → invia alla dashboard.
 
-### 5️⃣ Generazione risposte automatiche
-Crea una bozza che invia alla dashboard per approvazione.
-
-### 6️⃣ Apprendimento
-Registra le decisioni approvate dall’utente per migliorare la classificazione futura.
-
----
-
-## ✅ Come contribuire / modificare il progetto
-
-Puoi modificare:
-- `buildings.json` per aggiungere o rinominare edifici
-- `processor.py` per estendere la logica
-- `.env.example` per aggiungere nuove variabili
-- `build.yml` per cambiare modalità di build
-
-Dopo ogni modifica → GitHub ricostruirà automaticamente l’eseguibile.
+### 5️⃣ Apprendimento  
+Registra le decisioni approvate dall’utente.
 
 ---
 
@@ -163,5 +145,7 @@ Agente sviluppato con l’assistenza di **ChatGPT (GPT-5)**
 
 ## ✅ Licenza
 
-Puoi scegliere una licenza (MIT consigliata) o lasciare il progetto senza licenza.
+Distribuito con licenza **MIT** – vedi file `LICENSE`.
+
+Crea un file chiamato `.env` nella stessa cartella dell’eseguibile:
 
