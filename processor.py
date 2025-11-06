@@ -249,6 +249,17 @@ def reject():
     return jsonify({"status": "ok"})
 
 
+@app.route("/shutdown", methods=["POST"])
+def shutdown():
+    logging.info("Arresto richiesto dalla dashboard...")
+    shutdown_func = request.environ.get("werkzeug.server.shutdown")
+    if shutdown_func is None:
+        return jsonify({"status": "error", "message": "Shutdown non supportato"}), 500
+
+    shutdown_func()
+    return jsonify({"status": "ok", "message": "Agente in arresto..."})
+
+
 # ============================================================
 #  EMAIL PROCESSOR LOOP
 # ============================================================
