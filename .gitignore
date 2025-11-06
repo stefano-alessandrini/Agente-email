@@ -1,0 +1,40 @@
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+
+# ===== Virtual environments =====
+venv/
+.venv/
+env/
+ENV/
+
+# ===== PyInstaller build folders =====
+build/
+dist/
+*.spec
+
+# ===== Logs =====
+*.log
+
+# ===== IDE / Editor workspace =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== System files =====
+.DS_Store
+Thumbs.db
+
+# ===== Environment files =====
+.env
+.env.*
+!/.env.example  # mantieni l'esempio ma ignora quelli veri
+
+# ===== Temporary or generated =====
+*.tmp
+*.bak
+*.old
