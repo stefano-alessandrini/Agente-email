@@ -2,14 +2,17 @@ import os
 import time
 import json
 import logging
+import threading
 from datetime import datetime, timedelta
+
 from dotenv import load_dotenv
 import requests
+from flask import Flask, render_template, jsonify, request
 
 
-# ============================
+# ============================================================
 #  LOGGING CONFIGURATION
-# ============================
+# ============================================================
 LOG_FILE = "agent.log"
 
 logging.basicConfig(
@@ -22,23 +25,25 @@ logging.basicConfig(
 logging.info("=== Email Agent avviato ===")
 
 
-# ============================
+# ============================================================
 #  LOAD ENVIRONMENT
-# ============================
+# ============================================================
 load_dotenv()
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 TENANT_ID = os.getenv("TENANT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ENABLE_LLM = os.getenv("ENABLE_LLM", "false").lower() == "true"
+
 POLL_SECONDS = int(os.getenv("POLL_SECONDS", "20"))
 BUILDINGS_FILE = os.getenv("BUILDINGS_FILE", "buildings.json")
 
 
-# ============================
-#  AUTHENTICATION (MS GRAPH)
-# ============================
+# ============================================================
+#  MICROSOFT GRAPH AUTH
+# ============================================================
 def get_access_token():
     url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
     data = {
@@ -47,18 +52,13 @@ def get_access_token():
         "client_secret": CLIENT_SECRET,
         "grant_type": "client_credentials"
     }
-
     resp = requests.post(url, data=data)
     resp.raise_for_status()
-    token = resp.json()["access_token"]
-    return token
+    return resp.json()["access_token"]
 
 
 def graph_get(url, token):
-    resp = requests.get(
-        url,
-        headers={"Authorization": f"Bearer {token}"}
-    )
+    resp = requests.get(url, headers={"Authorization": f"Bearer {token}"})
     resp.raise_for_status()
     return resp.json()
 
@@ -89,12 +89,12 @@ def graph_patch(url, token, payload):
     return resp.json()
 
 
-# ============================
+# ============================================================
 #  LOAD BUILDINGS
-# ============================
+# ============================================================
 def load_buildings():
     if not os.path.exists(BUILDINGS_FILE):
-        logging.error(f"File buildings.json non trovato: {BUILDINGS_FILE}")
+        logging.error(f"File buildings.json non trovato ({BUILDINGS_FILE})")
         return []
 
     with open(BUILDINGS_FILE, "r", encoding="utf-8") as f:
@@ -104,33 +104,27 @@ def load_buildings():
 BUILDINGS = load_buildings()
 
 
-# ============================
+# ============================================================
 #  CLASSIFICATION ENGINE
-# ============================
+# ============================================================
 def classify_email(subject, body, sender):
-    """
-    Classificazione semplice basata su parole chiave.
-    (LLM opzionale se ENABLE_LLM=True)
-    """
+    subject_l = subject.lower()
+    body_l = body.lower()
 
-    subject_lower = subject.lower()
-    body_lower = body.lower()
-
-    # individuazione edificio/campus
     building = None
     for b in BUILDINGS:
-        if b.lower() in subject_lower or b.lower() in body_lower:
+        if b.lower() in subject_l or b.lower() in body_l:
             building = b
             break
 
-    # categorie semplificate
-    if "fattur" in subject_lower or "invoice" in subject_lower:
+    # categorie
+    if "fattur" in subject_l or "invoice" in subject_l:
         category = "Fatture"
-    elif "preventiv" in subject_lower:
+    elif "preventiv" in subject_l:
         category = "Preventivi"
-    elif "consuntiv" in subject_lower:
+    elif "consuntiv" in subject_l:
         category = "Consuntivi"
-    elif "guasto" in subject_lower or "segnalazione" in subject_lower:
+    elif "guasto" in subject_l or "segnalazione" in subject_l:
         category = "Segnalazioni"
     else:
         category = "Da Gestire"
@@ -142,14 +136,13 @@ def classify_email(subject, body, sender):
     return building, category, confidence
 
 
-# ============================
-#  CREATE TASK IN TO DO
-# ============================
+# ============================================================
+#  TODO TASK CREATION
+# ============================================================
 def create_todo_task(token, title, description):
     url = "https://graph.microsoft.com/v1.0/me/todo/lists"
     lists_data = graph_get(url, token)
 
-    # get default task list
     default_list = lists_data["value"][0]["id"]
 
     create_url = f"https://graph.microsoft.com/v1.0/me/todo/lists/{default_list}/tasks"
@@ -166,21 +159,17 @@ def create_todo_task(token, title, description):
     logging.info(f"Creato task To Do: {title}")
 
 
-# ============================
-#  MOVE EMAIL
-# ============================
+# ============================================================
+#  EMAIL MOVEMENT & FOLDERS
+# ============================================================
 def move_email(token, email_id, folder_id):
     url = f"https://graph.microsoft.com/v1.0/me/messages/{email_id}/move"
     payload = {"destinationId": folder_id}
-
     result = graph_post(url, token, payload)
     logging.info(f"Email spostata nella cartella ID={folder_id}")
     return result
 
 
-# ============================
-#  GET OR CREATE FOLDER
-# ============================
 def get_or_create_folder(token, name, parent_id="inbox"):
     url = f"https://graph.microsoft.com/v1.0/me/mailFolders/{parent_id}/childFolders"
     resp = graph_get(url, token)
@@ -189,34 +178,93 @@ def get_or_create_folder(token, name, parent_id="inbox"):
         if f["displayName"].lower() == name.lower():
             return f["id"]
 
-    # create folder
+    # create new folder
     create_url = f"https://graph.microsoft.com/v1.0/me/mailFolders/{parent_id}/childFolders"
     payload = {"displayName": name}
-
     new_folder = graph_post(create_url, token, payload)
-    logging.info(f"Creata nuova cartella: {name}")
 
+    logging.info(f"Creata cartella: {name}")
     return new_folder["id"]
 
 
-# ============================
-#  PROCESS EMAIL LOOP
-# ============================
+# ============================================================
+#  DASHBOARD DATA STORAGE
+# ============================================================
+pending_emails = []
+pending_lock = threading.Lock()
+
+
+# ============================================================
+#  FLASK DASHBOARD
+# ============================================================
+app = Flask(__name__)
+
+
+@app.route("/")
+def dashboard():
+    return render_template("dashboard.html")
+
+
+@app.route("/pending")
+def pending():
+    with pending_lock:
+        return jsonify(pending_emails)
+
+
+@app.route("/approve", methods=["POST"])
+def approve():
+    data = request.json
+    email_id = data["id"]
+    folder = data["folder"]
+
+    with pending_lock:
+        email_to_process = None
+        for e in pending_emails:
+            if e["id"] == email_id:
+                email_to_process = e
+                pending_emails.remove(e)
+                break
+
+    if not email_to_process:
+        return jsonify({"status": "error", "message": "Email non trovata"}), 404
+
+    token = get_access_token()
+    target_id = get_or_create_folder(token, folder, "inbox")
+
+    move_email(token, email_id, target_id)
+    logging.info(f"Email {email_id} approvata (cartella: {folder})")
+
+    return jsonify({"status": "ok"})
+
+
+@app.route("/reject", methods=["POST"])
+def reject():
+    data = request.json
+    email_id = data["id"]
+
+    with pending_lock:
+        pending_emails[:] = [e for e in pending_emails if e["id"] != email_id]
+
+    logging.info(f"Email {email_id} rifiutata dalla dashboard")
+    return jsonify({"status": "ok"})
+
+
+# ============================================================
+#  EMAIL PROCESSOR LOOP
+# ============================================================
 def process_emails():
     token = get_access_token()
 
-    # cartelle principali
+    # Create main folders
     immobili_id = get_or_create_folder(token, "Immobili", "inbox")
     operativo_id = get_or_create_folder(token, "Operativo", "inbox")
 
-    # sottocartelle operative
     da_gestire_id = get_or_create_folder(token, "Da Gestire", operativo_id)
 
-    logging.info("Preparazione cartelle completata. Avvio polling...")
+    logging.info("Cartelle pronte. Inizio polling…")
 
     while True:
         token = get_access_token()
-
         url = "https://graph.microsoft.com/v1.0/me/mailFolders/Inbox/messages?$filter=isRead eq false"
         data = graph_get(url, token)
 
@@ -226,36 +274,47 @@ def process_emails():
             sender = email.get("from", {}).get("emailAddress", {}).get("address", "")
             body = email.get("bodyPreview", "")
 
-            logging.info(f"Email nuova: {subject} | {sender}")
+            logging.info(f"Nuova email: {subject} ({sender})")
 
-            # Classificazione
             building, category, confidence = classify_email(subject, body, sender)
-            logging.info(f"Classificazione → building={building}, categoria={category}, conf={confidence}")
+            logging.info(f"Classificazione → {building} / {category} / {confidence}")
 
-            # cartella target
             if confidence >= 0.80 and building:
                 building_folder = get_or_create_folder(token, building, immobili_id)
                 category_folder = get_or_create_folder(token, category, building_folder)
                 move_email(token, email_id, category_folder)
 
-                # crea task solo per i documenti strutturati
                 if category in ["Fatture", "Preventivi", "Consuntivi", "Segnalazioni"]:
                     create_todo_task(token, f"{category} - {subject}", body)
 
             else:
-                # fallback: Da Gestire
-                move_email(token, email_id, da_gestire_id)
-                logging.info("Email ambigua → spostata in Operativo / Da Gestire")
+                # add to dashboard pending list
+                with pending_lock:
+                    pending_emails.append({
+                        "id": email_id,
+                        "subject": subject,
+                        "sender": sender,
+                        "preview": body[:400],
+                        "building": building,
+                        "category": category,
+                        "confidence": confidence
+                    })
+
+                logging.info("Email ambigua → inviata alla dashboard")
 
         time.sleep(POLL_SECONDS)
 
 
-# ============================
+# ============================================================
 #  MAIN
-# ============================
+# ============================================================
 if __name__ == "__main__":
+    # Web dashboard in parallel
+    threading.Thread(
+        target=lambda: app.run(port=5000, debug=False, use_reloader=False)
+    ).start()
+
     try:
         process_emails()
     except Exception as e:
         logging.error(f"Errore critico: {str(e)}")
-# Please copy the processor.py content from the canvas into this file.
