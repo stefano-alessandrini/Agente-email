@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Approvazione Email</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Dashboard – Email in attesa di approvazione</h1>
+
+    <div id="email-container"></div>
+
+    <script>
+        async function loadEmails() {
+            const response = await fetch("/pending");
+            const data = await response.json();
+
+            const container = document.getElementById("email-container");
+            container.innerHTML = "";
+
+            if (data.length === 0) {
+                container.innerHTML = "<p>Nessuna email in attesa ✔️</p>";
+                return;
+            }
+
+            data.forEach(email => {
+                const div = document.createElement("div");
+                div.className = "email-box";
+                div.innerHTML = `
+                    <h3>${email.subject}</h3>
+                    <p><strong>Da:</strong> ${email.sender}</p>
+                    <p>${email.preview}</p>
+                    <p><strong>Edificio:</strong> ${email.building || "Non identificato"}</p>
+                    <p><strong>Categoria:</strong> ${email.category}</p>
+
+                    <label>Cartella corretta:</label>
+                    <input id="folder-${email.id}" type="text" value="${email.category}">
+
+                    <button onclick="approve('${email.id}')">Approva</button>
+                    <button onclick="reject('${email.id}')">Rifiuta</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function approve(id) {
+            const folder = document.getElementById("folder-" + id).value;
+            await fetch("/approve", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ id, folder })
+            });
+            loadEmails();
+        }
+
+        async function reject(id) {
+            await fetch("/reject", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ id })
+            });
+            loadEmails();
+        }
+
+        loadEmails();
+        setInterval(loadEmails, 5000);
+    </script>
+
+</body>
+</html>
