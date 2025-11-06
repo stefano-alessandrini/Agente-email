@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.pdb
+*.pkl
 
 # ===== Virtual environments =====
 venv/
@@ -11,30 +12,59 @@ venv/
 env/
 ENV/
 
-# ===== PyInstaller build folders =====
+# ===== PyInstaller =====
+# Builds e file generati
 build/
 dist/
 *.spec
 
-# ===== Logs =====
+# ===== Log files =====
 *.log
-
-# ===== IDE / Editor workspace =====
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# ===== System files =====
-.DS_Store
-Thumbs.db
-
-# ===== Environment files =====
-.env
-.env.*
-!/.env.example  # mantieni l'esempio ma ignora quelli veri
-
-# ===== Temporary or generated =====
 *.tmp
 *.bak
 *.old
+
+# ===== System files (Windows) =====
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ===== System files (Mac/Linux) =====
+.DS_Store
+.Trashes
+*.swp
+*.swo
+
+# ===== IDE / Editor =====
+.vscode/
+.idea/
+*.code-workspace
+
+# ===== Environment / Secrets =====
+.env
+.env.*
+!/.env.example  # mantieni solo il file di esempio
+
+# ===== Python Jupyter =====
+.ipynb_checkpoints/
+
+# ===== Temporary directories =====
+temp/
+tmp/
+cache/
+
+# ===== Executables =====
+*.exe
+*.msi
+*.dll
+*.bin
+
+# ===== Node / Web (se in futuro aggiungi frontend) =====
+node_modules/
+dist/
+*.map
+
+# ===== GitHub Actions — evita di ignorare workflow =====
+!.github/
+!.github/workflows/
